@@ -145,7 +145,7 @@
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
                     Weiterleitung zum Dashboard...
                 </p>
-                <button @onclick='() => Navigation.NavigateTo("/dashboard")' class="btn btn-primary" style="width: 100%;">
+                <button @onclick='() => Navigation.NavigateTo("dashboard", forceLoad: false)' class="btn btn-primary" style="width: 100%;">
                     Zum Dashboard
                 </button>
             </div>
@@ -165,7 +165,7 @@
         isAuthenticated = await AuthService.IsAuthenticatedAsync();
         if (isAuthenticated)
         {
-            Navigation.NavigateTo("/dashboard");
+            Navigation.NavigateTo("dashboard", forceLoad: false);
         }
     }
 
@@ -179,7 +179,7 @@
             var success = await AuthService.SignInAsync(loginModel.Email, loginModel.Password);
             if (success)
             {
-                Navigation.NavigateTo("/dashboard");
+                Navigation.NavigateTo("dashboard", forceLoad: false);
             }
             else
             {
