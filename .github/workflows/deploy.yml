@@ -38,9 +38,17 @@ jobs:
             echo "ERROR: index.html not found at publish/wwwroot/index.html"
             exit 1
           fi
+          if [ ! -f "publish/wwwroot/404.html" ]; then
+            echo "ERROR: 404.html not found at publish/wwwroot/404.html"
+            exit 1
+          fi
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           sed -i "s/<base href=\"\/\" \/>/<base href=\"\/${REPO_NAME}\/\" \/>/g" publish/wwwroot/index.html
           echo "Successfully updated base tag to /${REPO_NAME}/"
+          echo "Verification: Base tag in index.html:"
+          grep "base href" publish/wwwroot/index.html
+          echo "Verification: 404.html exists:"
+          ls -lh publish/wwwroot/404.html
 
       - name: Add .nojekyll file
         run: touch publish/wwwroot/.nojekyll
