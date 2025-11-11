@@ -421,6 +421,28 @@ body::before {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
+/* Mobile Optimization for Grid */
+@media (max-width: 768px) {
+    .grid-modern {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .grid-modern {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+    }
+}
+
+@media (min-width: 1025px) {
+    .grid-modern {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -456,3 +478,64 @@ body::before {
 .stagger-item:nth-child(3) { animation-delay: 200ms; }
 .stagger-item:nth-child(4) { animation-delay: 300ms; }
 .stagger-item:nth-child(5) { animation-delay: 400ms; }
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+    /* Smaller button text on mobile */
+    .btn-modern {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+    }
+
+    /* Reduce font sizes for mobile */
+    .stat-value {
+        font-size: 2rem;
+    }
+
+    .section-header {
+        font-size: 1.5rem;
+    }
+
+    /* Stack items on mobile */
+    .modern-card {
+        padding: 1rem;
+    }
+
+    /* Adjust hover effect for touch devices */
+    .hover-lift:hover {
+        transform: none;
+    }
+
+    .hover-lift:active {
+        transform: scale(0.98);
+    }
+
+    /* Reduce gap in card links */
+    .modern-card h3 {
+        font-size: 1.125rem;
+    }
+
+    .modern-card p {
+        font-size: 0.875rem;
+    }
+
+    /* Optimize fab button for mobile */
+    .fab {
+        bottom: 1rem;
+        right: 1rem;
+        width: 56px;
+        height: 56px;
+        font-size: 1.25rem;
+    }
+}
+
+/* Tablet Optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .stat-value {
+        font-size: 2.25rem;
+    }
+
+    .section-header {
+        font-size: 1.75rem;
+    }
+}
