@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --color-primary: #007AFF;
+    --color-secondary: #5856D6;
+    --color-success: #34C759;
+    --color-warning: #FF9500;
+    --color-danger: #FF3B30;
+    --color-background: #FFFFFF;
+    --color-surface: #F2F2F7;
+    --color-border: #C6C6C8;
+    --color-text-primary: #000000;
+    --color-text-secondary: #3C3C43;
+    --color-text-tertiary: #8E8E93;
+}
+
+[data-theme="dark"] {
+    --color-primary: #0A84FF;
+    --color-secondary: #5E5CE6;
+    --color-success: #32D74B;
+    --color-warning: #FF9F0A;
+    --color-danger: #FF453A;
+    --color-background: #000000;
+    --color-surface: #1C1C1E;
+    --color-border: #38383A;
+    --color-text-primary: #FFFFFF;
+    --color-text-secondary: #EBEBF5;
+    --color-text-tertiary: #8E8E93;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    margin: 0;
+    padding: 0;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: var(--color-background);
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--color-surface);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+#blazor-error-ui {
+    background: var(--color-danger);
+    color: white;
+    padding: 1rem;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: none;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.btn-primary {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150;
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.card {
+    @apply rounded-xl p-6 shadow-md;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+}
+
+.input {
+    @apply w-full px-4 py-2 rounded-lg border transition-all;
+    background-color: var(--color-background);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.badge {
+    @apply inline-block px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-success {
+    background-color: var(--color-success);
+    color: white;
+}
+
+.badge-warning {
+    background-color: var(--color-warning);
+    color: white;
+}
+
+.badge-danger {
+    background-color: var(--color-danger);
+    color: white;
+}

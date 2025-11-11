@@ -63,8 +63,9 @@ yarn-error.log*
 # Supabase local
 .supabase/
 
-# wwwroot files (generated during build)
-**/wwwroot/
+# wwwroot files (generated during build) - only ignore in bin and obj
+**/bin/**/wwwroot/
+**/obj/**/wwwroot/
 
 # Build output
 dist/
