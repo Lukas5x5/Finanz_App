@@ -293,9 +293,9 @@
                         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                             @foreach (var attachment in invoiceAttachments)
                             {
-                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem; background-color: var(--color-surface); border-radius: var(--radius-md);">
-                                    <span style="font-size: 0.875rem;">📎 @GetFileNameFromPath(attachment.ObjectPath)</span>
-                                    <div style="display: flex; gap: 0.5rem;">
+                                <div class="attachment-item">
+                                    <span class="attachment-name">📎 @GetFileNameFromPath(attachment.ObjectPath)</span>
+                                    <div class="attachment-actions">
                                         <button type="button" @onclick="() => ViewAttachment(attachment)" class="btn btn-sm btn-primary">
                                             Ansehen
                                         </button>

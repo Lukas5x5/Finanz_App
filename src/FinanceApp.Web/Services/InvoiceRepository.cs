@@ -97,8 +97,8 @@ public class InvoiceRepository : IInvoiceRepository
                 Currency = dto.Currency,
                 DueAt = dto.DueAt,
                 Status = dto.Status.ToString(),
-                Category = dto.Category,
-                Notes = dto.Notes
+                Category = string.IsNullOrWhiteSpace(dto.Category) ? null : dto.Category,
+                Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes
             };
 
             var response = await _client
