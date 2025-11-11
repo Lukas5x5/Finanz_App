@@ -1,0 +1,510 @@
+@page "/dashboard"
+@using FinanceApp.Web.Services
+@using FinanceApp.Shared.Models
+@using FinanceApp.Shared.DTOs
+@using Microsoft.JSInterop
+@inject ISupabaseAuthService AuthService
+@inject IOrganizationService OrgService
+@inject ISummaryService SummaryService
+@inject AppState AppState
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Dashboard - Finance App</PageTitle>
+
+<div class="app-container">
+        <!-- Header -->
+        <div class="page-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="page-title">Dashboard</h1>
+                    @if (AppState.CurrentOrganization != null)
+                    {
+                        <p class="page-subtitle">
+                            @AppState.CurrentOrganization.Name
+                        </p>
+                    }
+                </div>
+
+                <div class="btn-group">
+                    <button @onclick="HandleLogout" class="btn btn-secondary">
+                        Abmelden
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Organization Switcher -->
+        @if (userOrganizations.Count > 1)
+        {
+            <div class="modern-card" style="margin-bottom: 2rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                        <span style="font-weight: 600; color: var(--color-text-secondary); font-size: 0.875rem;">ORGANISATION:</span>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            @foreach (var org in userOrganizations)
+                            {
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <button @onclick="() => SwitchOrganization(org)"
+                                            class="@(AppState.CurrentOrganization?.Id == org.Id ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm")">
+                                        @(org.Type == OrganizationType.Personal ? "🏠" : "🏢") @org.Name
+                                    </button>
+                                    <button @onclick="() => DeleteOrganization(org)"
+                                            class="btn btn-sm"
+                                            style="background-color: var(--color-danger); color: white; padding: 0.375rem 0.5rem;"
+                                            title="Organisation löschen">
+                                        🗑️
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <button @onclick="ShowCreateOrgModal" class="btn btn-success btn-sm">
+                        + Neue Organisation
+                    </button>
+                </div>
+            </div>
+        }
+        else if (userOrganizations.Count == 1)
+        {
+            <div class="modern-card" style="margin-bottom: 2rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">@(AppState.CurrentOrganization?.Type == OrganizationType.Personal ? "🏠" : "🏢")</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--color-text-primary);">@AppState.CurrentOrganization?.Name</div>
+                            <div style="font-size: 0.875rem; color: var(--color-text-tertiary);">@(AppState.CurrentOrganization?.Type == OrganizationType.Personal ? "Private Organisation" : "Unternehmens-Organisation")</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button @onclick="ShowCreateOrgModal" class="btn btn-success btn-sm">
+                            + Neue Organisation
+                        </button>
+                        @if (AppState.CurrentOrganization != null)
+                        {
+                            <button @onclick="() => DeleteOrganization(AppState.CurrentOrganization)"
+                                    class="btn btn-sm"
+                                    style="background-color: var(--color-danger); color: white;"
+                                    title="Organisation löschen">
+                                🗑️ Löschen
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Lade Dashboard...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="form-error">
+                <strong>Fehler:</strong> @errorMessage
+            </div>
+        }
+        else if (summary != null)
+        {
+            <!-- Summary Cards -->
+            <div class="stats-grid">
+                <!-- Monatliche Kosten -->
+                <div class="stat-card-modern info">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-value">
+                        @summary.TotalMonthly.ToString("C2")
+                    </div>
+                    <div class="stat-label">Monatliche Kosten</div>
+                </div>
+
+                <!-- Offene Rechnungen -->
+                <div class="stat-card-modern danger">
+                    <div class="stat-icon">📄</div>
+                    <div class="stat-value">
+                        @summary.OpenInvoices.ToString("C2")
+                    </div>
+                    <div class="stat-label">Offene Rechnungen</div>
+                </div>
+
+                <!-- Nächste 30 Tage -->
+                <div class="stat-card-modern">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value">
+                        @summary.Next30DaysCashOut.ToString("C2")
+                    </div>
+                    <div class="stat-label">Nächste 30 Tage</div>
+                </div>
+
+                <!-- Kündigungen -->
+                <div class="stat-card-modern success">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-value">
+                        @summary.UpcomingBindings.Count
+                    </div>
+                    <div class="stat-label">Bevorstehende Kündigungen</div>
+                </div>
+            </div>
+
+            <!-- Upcoming Bindings -->
+            @if (summary.UpcomingBindings.Any())
+            {
+                <div class="modern-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Bevorstehende Kündigungsfristen</h2>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        @foreach (var binding in summary.UpcomingBindings.Take(5))
+                        {
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--color-surface); border-radius: var(--radius-md); transition: all var(--transition-fast);">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.25rem;">
+                                        @binding.Name
+                                    </div>
+                                    <div style="font-size: 0.875rem; color: var(--color-text-tertiary);">
+                                        Endet am @binding.BindingEndsAt.ToString("dd.MM.yyyy")
+                                    </div>
+                                </div>
+                                <div class="badge badge-warning">
+                                    In @binding.DaysUntilEnd Tagen
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Quick Actions -->
+            <div class="grid-modern">
+                <a href="/costs" class="modern-card hover-lift" style="text-align: center; text-decoration: none; cursor: pointer;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">💳</div>
+                    <h3 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.5rem;">
+                        Fixkosten verwalten
+                    </h3>
+                    <p style="color: var(--color-text-tertiary); font-size: 0.9375rem;">
+                        Abos und wiederkehrende Kosten
+                    </p>
+                </a>
+
+                <a href="/invoices" class="modern-card hover-lift" style="text-align: center; text-decoration: none; cursor: pointer;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🧾</div>
+                    <h3 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.5rem;">
+                        Rechnungen
+                    </h3>
+                    <p style="color: var(--color-text-tertiary); font-size: 0.9375rem;">
+                        Offene und bezahlte Rechnungen
+                    </p>
+                </a>
+
+                <a href="/export" class="modern-card hover-lift" style="text-align: center; text-decoration: none; cursor: pointer;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                    <h3 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.5rem;">
+                        Export
+                    </h3>
+                    <p style="color: var(--color-text-tertiary); font-size: 0.9375rem;">
+                        Daten als CSV exportieren
+                    </p>
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">🏢</div>
+                <h2 class="empty-state-title">
+                    Willkommen bei Finance App!
+                </h2>
+                <p class="empty-state-description">
+                    Erstellen Sie Ihre erste Organisation, um zu beginnen.
+                </p>
+                <button @onclick="CreatePersonalOrg" class="btn btn-primary" disabled="@isCreatingOrg">
+                    @if (isCreatingOrg)
+                    {
+                        <span>Wird erstellt...</span>
+                    }
+                    else
+                    {
+                        <span>Persönliche Organisation erstellen</span>
+                    }
+                </button>
+            </div>
+        }
+</div>
+
+<!-- Create Organization Modal -->
+@if (showCreateOrgModal)
+{
+    <div class="modal-overlay" @onclick="HideCreateOrgModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">Neue Organisation erstellen</h2>
+                <button @onclick="HideCreateOrgModal" class="modal-close">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" @bind="newOrgName" class="form-input"
+                           placeholder="z.B. Meine Firma GmbH" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Typ *</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <button @onclick="() => newOrgType = OrganizationType.Personal"
+                                class="@(newOrgType == OrganizationType.Personal ? "btn btn-primary" : "btn btn-secondary")"
+                                style="padding: 1.5rem;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏠</div>
+                            <div style="font-weight: 600;">Privat</div>
+                            <div style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.25rem;">Persönliche Finanzen</div>
+                        </button>
+                        <button @onclick="() => newOrgType = OrganizationType.Business"
+                                class="@(newOrgType == OrganizationType.Business ? "btn btn-primary" : "btn btn-secondary")"
+                                style="padding: 1.5rem;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏢</div>
+                            <div style="font-weight: 600;">Unternehmen</div>
+                            <div style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.25rem;">Geschäftsfinanzen</div>
+                        </button>
+                    </div>
+                </div>
+
+                @if (createOrgError != null)
+                {
+                    <div class="form-error">
+                        @createOrgError
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button @onclick="HideCreateOrgModal" class="btn btn-secondary">
+                    Abbrechen
+                </button>
+                <button @onclick="CreateOrganization" class="btn btn-primary" disabled="@isCreatingNewOrg">
+                    @(isCreatingNewOrg ? "Erstellt..." : "Organisation erstellen")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Organization> userOrganizations = new();
+    private MonthSummaryDto? summary;
+    private bool isLoading = true;
+    private bool isCreatingOrg = false;
+    private string? errorMessage;
+
+    // Create org modal
+    private bool showCreateOrgModal = false;
+    private bool isCreatingNewOrg = false;
+    private string newOrgName = "";
+    private OrganizationType newOrgType = OrganizationType.Personal;
+    private string? createOrgError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Check authentication
+            var isAuth = await AuthService.IsAuthenticatedAsync();
+            if (!isAuth)
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            // Get current user
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null)
+            {
+                AppState.CurrentUser = user;
+            }
+
+            // Get organizations
+            userOrganizations = await OrgService.GetUserOrganizationsAsync();
+            if (userOrganizations.Any())
+            {
+                // Use first org if no current org is set
+                if (AppState.CurrentOrganization == null)
+                {
+                    AppState.CurrentOrganization = userOrganizations.First();
+                }
+                await LoadSummary();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden: {ex.Message}";
+            Console.Error.WriteLine($"Dashboard init error: {ex}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadSummary()
+    {
+        if (AppState.CurrentOrganization == null) return;
+
+        try
+        {
+            summary = await SummaryService.GetMonthSummaryAsync(AppState.CurrentOrganization.Id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden der Zusammenfassung: {ex.Message}";
+            Console.Error.WriteLine($"Summary load error: {ex}");
+        }
+    }
+
+    private async Task SwitchOrganization(Organization org)
+    {
+        AppState.CurrentOrganization = org;
+        summary = null; // Clear old data
+        await LoadSummary();
+        StateHasChanged();
+    }
+
+    private void ShowCreateOrgModal()
+    {
+        newOrgName = "";
+        newOrgType = OrganizationType.Personal;
+        createOrgError = null;
+        showCreateOrgModal = true;
+    }
+
+    private void HideCreateOrgModal()
+    {
+        showCreateOrgModal = false;
+    }
+
+    private async Task CreateOrganization()
+    {
+        if (string.IsNullOrWhiteSpace(newOrgName))
+        {
+            createOrgError = "Bitte geben Sie einen Namen ein.";
+            return;
+        }
+
+        isCreatingNewOrg = true;
+        createOrgError = null;
+
+        try
+        {
+            var dto = new CreateOrganizationDto
+            {
+                Name = newOrgName,
+                Type = newOrgType
+            };
+
+            var org = await OrgService.CreateOrganizationAsync(dto);
+            if (org != null)
+            {
+                userOrganizations.Add(org);
+                AppState.CurrentOrganization = org;
+                await LoadSummary();
+                HideCreateOrgModal();
+            }
+            else
+            {
+                createOrgError = "Organisation konnte nicht erstellt werden.";
+            }
+        }
+        catch (Exception ex)
+        {
+            createOrgError = $"Fehler: {ex.Message}";
+            Console.Error.WriteLine($"Create org error: {ex}");
+        }
+        finally
+        {
+            isCreatingNewOrg = false;
+        }
+    }
+
+    private async Task CreatePersonalOrg()
+    {
+        isCreatingOrg = true;
+        errorMessage = null;
+
+        try
+        {
+            var org = await OrgService.CreatePersonalOrganizationAsync();
+            if (org != null)
+            {
+                userOrganizations.Add(org);
+                AppState.CurrentOrganization = org;
+                await LoadSummary();
+            }
+            else
+            {
+                errorMessage = "Organisation konnte nicht erstellt werden.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler: {ex.Message}";
+            Console.Error.WriteLine($"Create org error: {ex}");
+        }
+        finally
+        {
+            isCreatingOrg = false;
+        }
+    }
+
+    private async Task DeleteOrganization(Organization org)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Möchten Sie die Organisation '{org.Name}' wirklich löschen? Alle zugehörigen Daten (Fixkosten, Rechnungen, etc.) werden ebenfalls gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+        );
+
+        if (!confirmed) return;
+
+        try
+        {
+            var success = await OrgService.DeleteOrganizationAsync(org.Id);
+
+            if (success)
+            {
+                // Remove from list
+                userOrganizations.Remove(org);
+
+                // If we deleted the current org, switch to another or clear
+                if (AppState.CurrentOrganization?.Id == org.Id)
+                {
+                    if (userOrganizations.Any())
+                    {
+                        AppState.CurrentOrganization = userOrganizations.First();
+                        await LoadSummary();
+                    }
+                    else
+                    {
+                        AppState.CurrentOrganization = null;
+                        summary = null;
+                    }
+                }
+
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = "Organisation konnte nicht gelöscht werden.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Löschen: {ex.Message}";
+            Console.Error.WriteLine($"Delete organization error: {ex}");
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.SignOutAsync();
+        Navigation.NavigateTo("/");
+    }
+}

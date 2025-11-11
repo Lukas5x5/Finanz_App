@@ -1,0 +1,249 @@
+@page "/export"
+@using FinanceApp.Web.Services
+@using Microsoft.JSInterop
+@inject AppState AppState
+@inject ICostRepository CostRepo
+@inject IInvoiceRepository InvoiceRepo
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<div class="app-container">
+        <!-- Header -->
+        <div class="page-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="page-title">Export</h1>
+                    <p class="page-subtitle">Exportieren Sie Ihre Finanzdaten als CSV-Dateien</p>
+                </div>
+                <button @onclick='() => Navigation.NavigateTo("/dashboard")' class="btn btn-secondary">
+                    Zurück zum Dashboard
+                </button>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Lade Export-Statistiken...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="form-error">
+                <strong>Fehler:</strong> @errorMessage
+            </div>
+        }
+        else
+        {
+            <!-- Costs Export Card -->
+            <div class="modern-card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Fixkosten</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 0.25rem;">Exportieren Sie alle wiederkehrenden Kosten als CSV</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="stat-value" style="font-size: 2rem; margin-bottom: 0;">@costStats.TotalItems</div>
+                        <div class="stat-label" style="font-size: 0.75rem;">Gesamt</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Monatlich</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">@costStats.MonthlyCosts</div>
+                    </div>
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Jährlich</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">@costStats.YearlyCosts</div>
+                    </div>
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Mit Bindung</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">@costStats.WithBinding</div>
+                    </div>
+                </div>
+
+                <button @onclick="ExportCosts" disabled="@isExportingCosts" class="btn btn-primary" style="width: 100%;">
+                    @if (isExportingCosts)
+                    {
+                        <span>Exportiere...</span>
+                    }
+                    else
+                    {
+                        <span>📥 Fixkosten als CSV exportieren</span>
+                    }
+                </button>
+            </div>
+
+            <!-- Invoices Export Card -->
+            <div class="modern-card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Rechnungen</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 0.25rem;">Exportieren Sie alle Rechnungen als CSV</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="stat-value" style="font-size: 2rem; margin-bottom: 0;">@invoiceStats.TotalItems</div>
+                        <div class="stat-label" style="font-size: 0.75rem;">Gesamt</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Offen</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">@invoiceStats.OpenInvoices</div>
+                    </div>
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Bezahlt</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">@invoiceStats.PaidInvoices</div>
+                    </div>
+                    <div style="background: var(--color-surface); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Gesamtbetrag</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary);">€@invoiceStats.TotalAmount.ToString("N2")</div>
+                    </div>
+                </div>
+
+                <button @onclick="ExportInvoices" disabled="@isExportingInvoices" class="btn btn-primary" style="width: 100%;">
+                    @if (isExportingInvoices)
+                    {
+                        <span>Exportiere...</span>
+                    }
+                    else
+                    {
+                        <span>📥 Rechnungen als CSV exportieren</span>
+                    }
+                </button>
+            </div>
+        }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isExportingCosts = false;
+    private bool isExportingInvoices = false;
+    private string? errorMessage;
+
+    private CostStats costStats = new();
+    private InvoiceStats invoiceStats = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.CurrentOrganization == null)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await LoadStatistics();
+        isLoading = false;
+    }
+
+    private async Task LoadStatistics()
+    {
+        try
+        {
+            // Load costs
+            var costs = await CostRepo.GetAllAsync(AppState.CurrentOrganization.Id);
+            costStats.TotalItems = costs.Count;
+            costStats.MonthlyCosts = costs.Count(c => c.Cycle == FinanceApp.Shared.Models.BillingCycle.Monthly);
+            costStats.YearlyCosts = costs.Count(c => c.Cycle == FinanceApp.Shared.Models.BillingCycle.Yearly);
+            costStats.WithBinding = costs.Count(c => c.HasBinding);
+
+            // Load invoices
+            var invoices = await InvoiceRepo.GetAllAsync(AppState.CurrentOrganization.Id);
+            invoiceStats.TotalItems = invoices.Count;
+            invoiceStats.OpenInvoices = invoices.Count(i => i.Status == FinanceApp.Shared.Models.InvoiceStatus.Open);
+            invoiceStats.PaidInvoices = invoices.Count(i => i.Status == FinanceApp.Shared.Models.InvoiceStatus.Paid);
+            invoiceStats.TotalAmount = invoices.Sum(i => i.Amount);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading statistics: {ex.Message}";
+            Console.Error.WriteLine($"Error loading statistics: {ex}");
+        }
+    }
+
+    private async Task ExportCosts()
+    {
+        isExportingCosts = true;
+        errorMessage = null;
+
+        try
+        {
+            var csv = await CostRepo.ExportToCsvAsync(AppState.CurrentOrganization.Id);
+
+            if (string.IsNullOrEmpty(csv))
+            {
+                errorMessage = "No data to export";
+                return;
+            }
+
+            // Download CSV file
+            var fileName = $"costs_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            await DownloadFile(fileName, csv);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error exporting costs: {ex.Message}";
+            Console.Error.WriteLine($"Error exporting costs: {ex}");
+        }
+        finally
+        {
+            isExportingCosts = false;
+        }
+    }
+
+    private async Task ExportInvoices()
+    {
+        isExportingInvoices = true;
+        errorMessage = null;
+
+        try
+        {
+            var csv = await InvoiceRepo.ExportToCsvAsync(AppState.CurrentOrganization.Id);
+
+            if (string.IsNullOrEmpty(csv))
+            {
+                errorMessage = "No data to export";
+                return;
+            }
+
+            // Download CSV file
+            var fileName = $"invoices_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            await DownloadFile(fileName, csv);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error exporting invoices: {ex.Message}";
+            Console.Error.WriteLine($"Error exporting invoices: {ex}");
+        }
+        finally
+        {
+            isExportingInvoices = false;
+        }
+    }
+
+    private async Task DownloadFile(string fileName, string content)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+
+    private class CostStats
+    {
+        public int TotalItems { get; set; }
+        public int MonthlyCosts { get; set; }
+        public int YearlyCosts { get; set; }
+        public int WithBinding { get; set; }
+    }
+
+    private class InvoiceStats
+    {
+        public int TotalItems { get; set; }
+        public int OpenInvoices { get; set; }
+        public int PaidInvoices { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+}

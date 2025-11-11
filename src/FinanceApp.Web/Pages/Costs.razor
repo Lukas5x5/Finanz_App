@@ -1,0 +1,518 @@
+@page "/costs"
+@using FinanceApp.Web.Services
+@using FinanceApp.Shared.Models
+@using FinanceApp.Shared.DTOs
+@using FinanceApp.Shared.Helpers
+@using Microsoft.JSInterop
+@inject ISupabaseAuthService AuthService
+@inject ICostRepository CostRepo
+@inject AppState AppState
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Fixkosten - Finance App</PageTitle>
+
+<div class="app-container">
+        <!-- Header -->
+        <div class="page-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="page-title">Fixkosten</h1>
+                    <p class="page-subtitle">
+                        Wiederkehrende Kosten und Abonnements
+                    </p>
+                </div>
+                <div class="btn-group">
+                    <button @onclick="ShowAddForm" class="btn btn-primary">
+                        + Neue Fixkosten
+                    </button>
+                    <button @onclick="GoBack" class="btn btn-secondary">
+                        Zurück
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Lade Fixkosten...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="form-error">
+                <strong>Fehler:</strong> @errorMessage
+            </div>
+        }
+        else
+        {
+            <!-- Summary Cards -->
+            <div class="stats-grid">
+                <div class="stat-card-modern info">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value">
+                        @totalMonthly.ToString("C2")
+                    </div>
+                    <div class="stat-label">Monatlich</div>
+                </div>
+                <div class="stat-card-modern success">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value">
+                        @totalYearly.ToString("C2")
+                    </div>
+                    <div class="stat-label">Jährlich</div>
+                </div>
+                <div class="stat-card-modern">
+                    <div class="stat-icon">💳</div>
+                    <div class="stat-value">
+                        @costItems.Count
+                    </div>
+                    <div class="stat-label">Anzahl Fixkosten</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="modern-card">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Zyklus</label>
+                        <select @bind="filterCycle" @bind:after="ApplyFilters" class="form-select">
+                            <option value="">Alle</option>
+                            <option value="Monthly">Monatlich</option>
+                            <option value="Yearly">Jährlich</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Bindung</label>
+                        <select @bind="filterBinding" @bind:after="ApplyFilters" class="form-select">
+                            <option value="">Alle</option>
+                            <option value="yes">Mit Bindung</option>
+                            <option value="no">Ohne Bindung</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Suche</label>
+                        <input type="text" @bind="searchText" @bind:after="ApplyFilters"
+                               placeholder="Name oder Kategorie..." class="form-input" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Items List -->
+            @if (filteredItems.Any())
+            {
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    @foreach (var item in filteredItems)
+                    {
+                        <div class="modern-card hover-lift">
+                            <div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                                        <h3 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary);">
+                                            @item.Name
+                                        </h3>
+                                        @if (item.HasBinding)
+                                        {
+                                            <span class="badge badge-warning">
+                                                Bindung bis @item.BindingEndsAt?.ToString("dd.MM.yyyy")
+                                            </span>
+                                        }
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(item.Category))
+                                    {
+                                        <div style="font-size: 0.875rem; margin-bottom: 0.5rem; color: var(--color-text-secondary);">
+                                            📁 @item.Category
+                                        </div>
+                                    }
+                                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.875rem; color: var(--color-text-tertiary);">
+                                        <span>💰 @item.Amount.ToString("C2") @item.Currency</span>
+                                        <span>📅 @item.Cycle</span>
+                                        @if (!string.IsNullOrEmpty(item.PaymentMethod))
+                                        {
+                                            <span>💳 @item.PaymentMethod</span>
+                                        }
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(item.Notes))
+                                    {
+                                        <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-text-secondary);">
+                                            @item.Notes
+                                        </div>
+                                    }
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button @onclick="() => ShowEditForm(item)" class="btn btn-secondary btn-sm">
+                                        ✏️
+                                    </button>
+                                    <button @onclick="() => DeleteItem(item)" class="btn btn-danger btn-sm">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">💳</div>
+                    <h3 class="empty-state-title">
+                        Keine Fixkosten gefunden
+                    </h3>
+                    <p class="empty-state-description">
+                        @if (string.IsNullOrEmpty(searchText) && string.IsNullOrEmpty(filterCycle) && string.IsNullOrEmpty(filterBinding))
+                        {
+                            <span>Erstellen Sie Ihre erste Fixkosten-Position.</span>
+                        }
+                        else
+                        {
+                            <span>Keine Ergebnisse für die aktuellen Filter.</span>
+                        }
+                    </p>
+                </div>
+            }
+        }
+</div>
+
+<!-- Add/Edit Modal -->
+@if (showForm)
+{
+    <div class="modal-overlay" @onclick="HideForm">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    @(editingItem == null ? "Neue Fixkosten" : "Fixkosten bearbeiten")
+                </h2>
+                <button @onclick="HideForm" class="modal-close">
+                    ×
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" @bind="formItem.Name" class="form-input"
+                           placeholder="z.B. Netflix Premium" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Kategorie</label>
+                    <input type="text" @bind="formItem.Category" class="form-input"
+                           placeholder="z.B. Entertainment, Software" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Betrag *</label>
+                        <input type="number" step="0.01" @bind="formItem.Amount" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Währung</label>
+                        <select @bind="formItem.Currency" class="form-select">
+                            <option value="EUR">EUR €</option>
+                            <option value="USD">USD $</option>
+                            <option value="GBP">GBP £</option>
+                            <option value="CHF">CHF</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Zyklus *</label>
+                    <select @bind="formItem.Cycle" class="form-select">
+                        <option value="Monthly">Monatlich</option>
+                        <option value="Yearly">Jährlich</option>
+                    </select>
+                </div>
+
+                <div class="form-checkbox-wrapper">
+                    <input type="checkbox" @bind="formItem.HasBinding" class="form-checkbox" />
+                    <span style="font-weight: 500; color: var(--color-text-primary);">Hat Vertragsbindung</span>
+                </div>
+
+                @if (formItem.HasBinding)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Bindung endet am</label>
+                        <input type="date" @bind="formItem.BindingEndsAt" class="form-input" />
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Zahlungsmethode</label>
+                    <input type="text" @bind="formItem.PaymentMethod" class="form-input"
+                           placeholder="z.B. VISA, PayPal, SEPA" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notizen</label>
+                    <textarea @bind="formItem.Notes" class="form-textarea" rows="3"
+                              placeholder="Zusätzliche Informationen..."></textarea>
+                </div>
+
+                @if (formErrorMessage != null)
+                {
+                    <div class="form-error">
+                        @formErrorMessage
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button @onclick="HideForm" class="btn btn-secondary">
+                    Abbrechen
+                </button>
+                <button @onclick="SaveItem" class="btn btn-primary" disabled="@isSaving">
+                    @(isSaving ? "Speichert..." : "Speichern")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CostItem> costItems = new();
+    private List<CostItem> filteredItems = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool showForm = false;
+    private string? errorMessage;
+    private string? formErrorMessage;
+    private CostItem? editingItem;
+    private CostItem formItem = new();
+
+    private string searchText = "";
+    private string filterCycle = "";
+    private string filterBinding = "";
+
+    private decimal totalMonthly = 0;
+    private decimal totalYearly = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var isAuth = await AuthService.IsAuthenticatedAsync();
+            if (!isAuth)
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            if (AppState.CurrentOrganization == null)
+            {
+                Navigation.NavigateTo("/dashboard");
+                return;
+            }
+
+            await LoadCostItems();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden: {ex.Message}";
+            Console.Error.WriteLine($"Costs init error: {ex}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadCostItems()
+    {
+        if (AppState.CurrentOrganization == null) return;
+
+        try
+        {
+            costItems = await CostRepo.GetAllAsync(AppState.CurrentOrganization.Id);
+            CalculateTotals();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden der Fixkosten: {ex.Message}";
+            Console.Error.WriteLine($"Load costs error: {ex}");
+        }
+    }
+
+    private void CalculateTotals()
+    {
+        totalMonthly = CostCalculator.CalculateTotalMonthly(costItems);
+        totalYearly = CostCalculator.CalculateTotalYearly(costItems);
+    }
+
+    private void ApplyFilters()
+    {
+        filteredItems = costItems;
+
+        if (!string.IsNullOrEmpty(filterCycle))
+        {
+            var cycle = Enum.Parse<BillingCycle>(filterCycle);
+            filteredItems = filteredItems.Where(x => x.Cycle == cycle).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(filterBinding))
+        {
+            bool hasBinding = filterBinding == "yes";
+            filteredItems = filteredItems.Where(x => x.HasBinding == hasBinding).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(searchText))
+        {
+            var search = searchText.ToLower();
+            filteredItems = filteredItems.Where(x =>
+                x.Name.ToLower().Contains(search) ||
+                (x.Category != null && x.Category.ToLower().Contains(search))
+            ).ToList();
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        editingItem = null;
+        formItem = new CostItem
+        {
+            OrganizationId = AppState.CurrentOrganization!.Id,
+            Currency = "EUR",
+            Cycle = BillingCycle.Monthly,
+            HasBinding = false
+        };
+        formErrorMessage = null;
+        showForm = true;
+    }
+
+    private void ShowEditForm(CostItem item)
+    {
+        editingItem = item;
+        formItem = new CostItem
+        {
+            Id = item.Id,
+            OrganizationId = item.OrganizationId,
+            Name = item.Name,
+            Category = item.Category,
+            Amount = item.Amount,
+            Currency = item.Currency,
+            Cycle = item.Cycle,
+            HasBinding = item.HasBinding,
+            BindingEndsAt = item.BindingEndsAt,
+            PaymentMethod = item.PaymentMethod,
+            Notes = item.Notes
+        };
+        formErrorMessage = null;
+        showForm = true;
+    }
+
+    private void HideForm()
+    {
+        showForm = false;
+        editingItem = null;
+        formErrorMessage = null;
+    }
+
+    private async Task SaveItem()
+    {
+        if (string.IsNullOrWhiteSpace(formItem.Name))
+        {
+            formErrorMessage = "Name ist erforderlich.";
+            return;
+        }
+
+        if (formItem.Amount <= 0)
+        {
+            formErrorMessage = "Betrag muss größer als 0 sein.";
+            return;
+        }
+
+        if (formItem.HasBinding && formItem.BindingEndsAt == null)
+        {
+            formErrorMessage = "Bindungsenddatum ist erforderlich.";
+            return;
+        }
+
+        isSaving = true;
+        formErrorMessage = null;
+
+        try
+        {
+            if (AppState.CurrentOrganization == null)
+            {
+                formErrorMessage = "Organisation nicht gefunden.";
+                return;
+            }
+
+            if (editingItem == null)
+            {
+                var createDto = new CreateCostItemDto
+                {
+                    Name = formItem.Name,
+                    Category = formItem.Category,
+                    Amount = formItem.Amount,
+                    Currency = formItem.Currency,
+                    Cycle = formItem.Cycle,
+                    HasBinding = formItem.HasBinding,
+                    BindingEndsAt = formItem.BindingEndsAt,
+                    PaymentMethod = formItem.PaymentMethod,
+                    Notes = formItem.Notes,
+                    Tags = formItem.Tags
+                };
+                await CostRepo.CreateAsync(AppState.CurrentOrganization.Id, createDto);
+            }
+            else
+            {
+                var updateDto = new UpdateCostItemDto
+                {
+                    Id = formItem.Id,
+                    Name = formItem.Name,
+                    Category = formItem.Category,
+                    Amount = formItem.Amount,
+                    Currency = formItem.Currency,
+                    Cycle = formItem.Cycle,
+                    HasBinding = formItem.HasBinding,
+                    BindingEndsAt = formItem.BindingEndsAt,
+                    PaymentMethod = formItem.PaymentMethod,
+                    Notes = formItem.Notes,
+                    Tags = formItem.Tags
+                };
+                await CostRepo.UpdateAsync(updateDto);
+            }
+
+            await LoadCostItems();
+            HideForm();
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = $"Fehler beim Speichern: {ex.Message}";
+            Console.Error.WriteLine($"Save cost error: {ex}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteItem(CostItem item)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Möchten Sie '{item.Name}' wirklich löschen?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await CostRepo.DeleteAsync(item.Id);
+            await LoadCostItems();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Löschen: {ex.Message}";
+            Console.Error.WriteLine($"Delete cost error: {ex}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}

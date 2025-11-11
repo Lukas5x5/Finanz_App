@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet nuget list:*)",
+      "Bash(dotnet nuget add source:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build:*)",
+      "Bash(Select-String -Pattern \"error|warning|succeeded|failed\")",
+      "Bash(Select-Object -Last 20)",
+      "Bash(timeout 10 dotnet run:*)",
+      "Bash(dotnet run)",
+      "Bash(IAttachmentRepository.cs)",
+      "Bash(AttachmentRepository.cs)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(.gitignore)",
+      "Bash(git init:*)",
+      "Bash(.githubworkflowsdeploy.yml)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

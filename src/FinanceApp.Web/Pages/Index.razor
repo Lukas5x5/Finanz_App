@@ -1,0 +1,232 @@
+@page "/"
+@using FinanceApp.Web.Services
+@inject ISupabaseAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Finance App - Login</PageTitle>
+
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; background: var(--color-bg-primary);">
+    <div style="max-width: 28rem; width: 100%;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 3rem;">
+            <div style="font-size: 3.5rem; margin-bottom: 1rem;">💰</div>
+            <h1 class="gradient-text" style="font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;">
+                Finance App
+            </h1>
+            <p style="font-size: 1.125rem; color: var(--color-text-secondary);">
+                Verwalten Sie Ihre Finanzen einfach und übersichtlich
+            </p>
+        </div>
+
+        @if (!isAuthenticated)
+        {
+            <div class="modern-card animate-slide-up">
+                @if (isSignUp)
+                {
+                    <div class="card-header" style="border-bottom: 1px solid var(--color-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                        <h2 class="card-title">Registrieren</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">
+                            Erstellen Sie Ihr kostenloses Konto
+                        </p>
+                    </div>
+
+                    <EditForm Model="@loginModel" OnValidSubmit="HandleSignUp">
+                        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                            <div class="form-group">
+                                <label class="form-label">E-Mail-Adresse</label>
+                                <InputText @bind-Value="loginModel.Email" class="form-input" type="email" placeholder="ihre@email.de" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Passwort</label>
+                                <InputText @bind-Value="loginModel.Password" class="form-input" type="password" placeholder="Mindestens 8 Zeichen" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="form-error">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.875rem;" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span>Wird registriert...</span>
+                                }
+                                else
+                                {
+                                    <span>Konto erstellen</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    <div style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid var(--color-border);">
+                        <button @onclick="() => { isSignUp = false; errorMessage = null; }"
+                                style="background: none; border: none; color: var(--color-primary); font-weight: 500; cursor: pointer; font-size: 0.9375rem;">
+                            Bereits registriert? <strong>Jetzt anmelden</strong>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-header" style="border-bottom: 1px solid var(--color-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                        <h2 class="card-title">Anmelden</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">
+                            Willkommen zurück! Bitte melden Sie sich an
+                        </p>
+                    </div>
+
+                    <EditForm Model="@loginModel" OnValidSubmit="HandleSignIn">
+                        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                            <div class="form-group">
+                                <label class="form-label">E-Mail-Adresse</label>
+                                <InputText @bind-Value="loginModel.Email" class="form-input" type="email" placeholder="ihre@email.de" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Passwort</label>
+                                <InputText @bind-Value="loginModel.Password" class="form-input" type="password" placeholder="Ihr Passwort" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="form-error">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.875rem;" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span>Wird angemeldet...</span>
+                                }
+                                else
+                                {
+                                    <span>Anmelden</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    <div style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid var(--color-border);">
+                        <button @onclick="() => { isSignUp = true; errorMessage = null; }"
+                                style="background: none; border: none; color: var(--color-primary); font-weight: 500; cursor: pointer; font-size: 0.9375rem;">
+                            Noch kein Konto? <strong>Jetzt registrieren</strong>
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <!-- Features Section -->
+            <div style="margin-top: 3rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💳</div>
+                    <p style="font-size: 0.75rem; color: var(--color-text-tertiary); font-weight: 500;">Fixkosten</p>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🧾</div>
+                    <p style="font-size: 0.75rem; color: var(--color-text-tertiary); font-weight: 500;">Rechnungen</p>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📊</div>
+                    <p style="font-size: 0.75rem; color: var(--color-text-tertiary); font-weight: 500;">Export</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="modern-card" style="text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                <h2 style="font-size: 1.5rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.5rem;">
+                    Sie sind angemeldet!
+                </h2>
+                <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                    Weiterleitung zum Dashboard...
+                </p>
+                <button @onclick='() => Navigation.NavigateTo("/dashboard")' class="btn btn-primary" style="width: 100%;">
+                    Zum Dashboard
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private bool isSignUp = false;
+    private bool isLoading = false;
+    private bool isAuthenticated = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+
+    private async Task HandleSignIn()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var success = await AuthService.SignInAsync(loginModel.Email, loginModel.Password);
+            if (success)
+            {
+                Navigation.NavigateTo("/dashboard");
+            }
+            else
+            {
+                errorMessage = "Anmeldung fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ein Fehler ist aufgetreten: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSignUp()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var success = await AuthService.SignUpAsync(loginModel.Email, loginModel.Password);
+            if (success)
+            {
+                errorMessage = null;
+                isSignUp = false;
+            }
+            else
+            {
+                errorMessage = "Registrierung fehlgeschlagen. Bitte versuchen Sie es erneut.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ein Fehler ist aufgetreten: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

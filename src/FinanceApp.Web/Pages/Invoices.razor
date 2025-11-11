@@ -1,0 +1,724 @@
+@page "/invoices"
+@using FinanceApp.Web.Services
+@using FinanceApp.Shared.Models
+@using FinanceApp.Shared.DTOs
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Forms
+@inject ISupabaseAuthService AuthService
+@inject IInvoiceRepository InvoiceRepo
+@inject IAttachmentRepository AttachmentRepo
+@inject IStorageService StorageService
+@inject AppState AppState
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Rechnungen - Finance App</PageTitle>
+
+<div class="app-container">
+        <!-- Header -->
+        <div class="page-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="page-title">Rechnungen</h1>
+                    <p class="page-subtitle">
+                        Offene und bezahlte Rechnungen verwalten
+                    </p>
+                </div>
+                <div class="btn-group">
+                    <button @onclick="ShowAddForm" class="btn btn-primary">
+                        + Neue Rechnung
+                    </button>
+                    <button @onclick="GoBack" class="btn btn-secondary">
+                        Zurück
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Lade Rechnungen...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="form-error">
+                <strong>Fehler:</strong> @errorMessage
+            </div>
+        }
+        else
+        {
+            <!-- Summary Cards -->
+            <div class="stats-grid">
+                <div class="stat-card-modern danger">
+                    <div class="stat-icon">📄</div>
+                    <div class="stat-value">
+                        @openInvoices.Count
+                    </div>
+                    <div class="stat-label">Offene Rechnungen</div>
+                    <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-top: 0.5rem;">
+                        @openInvoices.Sum(x => x.Amount).ToString("C2")
+                    </div>
+                </div>
+                <div class="stat-card-modern success">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-value">
+                        @paidInvoices.Count
+                    </div>
+                    <div class="stat-label">Bezahlte Rechnungen</div>
+                    <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-top: 0.5rem;">
+                        @paidInvoices.Sum(x => x.Amount).ToString("C2")
+                    </div>
+                </div>
+                <div class="stat-card-modern info">
+                    <div class="stat-icon">🧾</div>
+                    <div class="stat-value">
+                        @invoices.Count
+                    </div>
+                    <div class="stat-label">Gesamt</div>
+                    <div style="font-size: 0.875rem; color: var(--color-text-tertiary); margin-top: 0.5rem;">
+                        Alle Rechnungen
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="modern-card">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select @bind="filterStatus" @bind:after="ApplyFilters" class="form-select">
+                            <option value="">Alle</option>
+                            <option value="Open">Offen</option>
+                            <option value="Paid">Bezahlt</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Suche</label>
+                        <input type="text" @bind="searchText" @bind:after="ApplyFilters"
+                               placeholder="Lieferant oder Kategorie..." class="form-input" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoices List -->
+            @if (filteredInvoices.Any())
+            {
+                <div class="space-y-4">
+                    @foreach (var invoice in filteredInvoices.OrderBy(x => x.Status).ThenBy(x => x.DueAt))
+                    {
+                        <div class="card">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h3 class="text-xl font-semibold" style="color: var(--color-text-primary);">
+                                            @invoice.Vendor
+                                        </h3>
+                                        @if (invoice.Status == InvoiceStatus.Open)
+                                        {
+                                            <span class="badge badge-danger">Offen</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-success">Bezahlt</span>
+                                        }
+                                        @if (invoice.Status == InvoiceStatus.Open && invoice.DueAt < DateTime.Today)
+                                        {
+                                            <span class="badge badge-warning">Überfällig</span>
+                                        }
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-4 mb-2">
+                                        <span style="color: var(--color-text-secondary);">
+                                            💰 <strong>@invoice.Amount.ToString("C2") @invoice.Currency</strong>
+                                        </span>
+                                        <span style="color: var(--color-text-secondary);">
+                                            📅 Fällig: @invoice.DueAt.ToString("dd.MM.yyyy")
+                                        </span>
+                                        @if (!string.IsNullOrEmpty(invoice.Category))
+                                        {
+                                            <span style="color: var(--color-text-secondary);">
+                                                📁 @invoice.Category
+                                            </span>
+                                        }
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(invoice.Notes))
+                                    {
+                                        <div class="mt-2 text-sm" style="color: var(--color-text-tertiary);">
+                                            @invoice.Notes
+                                        </div>
+                                    }
+
+                                    @if (invoice.Status == InvoiceStatus.Open)
+                                    {
+                                        var daysUntilDue = (invoice.DueAt - DateTime.Today).Days;
+                                        <div class="mt-2 text-sm" style="color: var(--color-text-tertiary);">
+                                            @if (daysUntilDue < 0)
+                                            {
+                                                <span style="color: var(--color-danger);">⚠️ @Math.Abs(daysUntilDue) Tage überfällig</span>
+                                            }
+                                            else if (daysUntilDue == 0)
+                                            {
+                                                <span style="color: var(--color-warning);">⚠️ Heute fällig</span>
+                                            }
+                                            else if (daysUntilDue <= 7)
+                                            {
+                                                <span style="color: var(--color-warning);">⚠️ Fällig in @daysUntilDue Tagen</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Fällig in @daysUntilDue Tagen</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <div class="flex gap-2">
+                                    @if (invoice.Status == InvoiceStatus.Open)
+                                    {
+                                        <button @onclick="() => MarkAsPaid(invoice)" class="px-3 py-2 rounded-lg"
+                                                style="background-color: var(--color-success); color: white;">
+                                            ✓ Bezahlt
+                                        </button>
+                                    }
+                                    <button @onclick="() => ShowEditForm(invoice)" class="px-3 py-2 rounded-lg"
+                                            style="background-color: var(--color-surface); color: var(--color-text-primary);">
+                                        ✏️
+                                    </button>
+                                    <button @onclick="() => DeleteInvoice(invoice)" class="px-3 py-2 rounded-lg"
+                                            style="background-color: var(--color-danger); color: white;">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="card text-center py-12">
+                    <div class="text-4xl mb-4">🧾</div>
+                    <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text-primary);">
+                        Keine Rechnungen gefunden
+                    </h3>
+                    <p style="color: var(--color-text-secondary);">
+                        @if (string.IsNullOrEmpty(searchText) && string.IsNullOrEmpty(filterStatus))
+                        {
+                            <span>Erstellen Sie Ihre erste Rechnung.</span>
+                        }
+                        else
+                        {
+                            <span>Keine Ergebnisse für die aktuellen Filter.</span>
+                        }
+                    </p>
+                </div>
+            }
+        }
+</div>
+
+<!-- Add/Edit Modal -->
+@if (showForm)
+{
+    <div class="modal-backdrop" @onclick="HideForm">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold" style="color: var(--color-text-primary);">
+                    @(editingInvoice == null ? "Neue Rechnung" : "Rechnung bearbeiten")
+                </h2>
+                <button @onclick="HideForm" class="text-2xl" style="color: var(--color-text-secondary);">
+                    ×
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Lieferant *</label>
+                    <input type="text" @bind="formInvoice.Vendor" class="input-field w-full"
+                           placeholder="z.B. Amazon, Deutsche Telekom" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Betrag *</label>
+                        <input type="number" step="0.01" @bind="formInvoice.Amount" class="input-field w-full" />
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Währung</label>
+                        <select @bind="formInvoice.Currency" class="input-field w-full">
+                            <option value="EUR">EUR €</option>
+                            <option value="USD">USD $</option>
+                            <option value="GBP">GBP £</option>
+                            <option value="CHF">CHF</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Fälligkeitsdatum *</label>
+                    <input type="date" @bind="formInvoice.DueAt" class="input-field w-full" />
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Status</label>
+                    <select @bind="formInvoice.Status" class="input-field w-full">
+                        <option value="@InvoiceStatus.Open">Offen</option>
+                        <option value="@InvoiceStatus.Paid">Bezahlt</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Kategorie</label>
+                    <input type="text" @bind="formInvoice.Category" class="input-field w-full"
+                           placeholder="z.B. Internet, Strom, Miete" />
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Rechnung hochladen</label>
+                    <InputFile OnChange="HandleFileSelected" class="input-field w-full" accept="image/*,application/pdf" />
+                    @if (selectedFileName != null)
+                    {
+                        <div class="mt-2 text-sm" style="color: var(--color-text-secondary);">
+                            ✓ @selectedFileName ausgewählt
+                        </div>
+                    }
+                </div>
+
+                @if (editingInvoice != null && invoiceAttachments.Any())
+                {
+                    <div>
+                        <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Hochgeladene Dateien</label>
+                        <div class="space-y-2">
+                            @foreach (var attachment in invoiceAttachments)
+                            {
+                                <div class="flex items-center justify-between p-2 rounded" style="background-color: var(--color-surface);">
+                                    <span class="text-sm">📎 @GetFileNameFromPath(attachment.ObjectPath)</span>
+                                    <div class="flex gap-2">
+                                        <button type="button" @onclick="() => ViewAttachment(attachment)" class="text-sm px-2 py-1 rounded"
+                                                style="background-color: var(--color-primary); color: white;">
+                                            Ansehen
+                                        </button>
+                                        <button type="button" @onclick="() => DownloadAttachment(attachment)" class="text-sm px-2 py-1 rounded"
+                                                style="background-color: #10b981; color: white;">
+                                            Download
+                                        </button>
+                                        <button type="button" @onclick="() => DeleteAttachment(attachment)" class="text-sm px-2 py-1 rounded"
+                                                style="background-color: var(--color-danger); color: white;">
+                                            Löschen
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div>
+                    <label class="block text-sm mb-2" style="color: var(--color-text-secondary);">Notizen</label>
+                    <textarea @bind="formInvoice.Notes" class="input-field w-full" rows="3"
+                              placeholder="Zusätzliche Informationen..."></textarea>
+                </div>
+
+                @if (formErrorMessage != null)
+                {
+                    <div class="p-4 rounded-lg" style="background-color: var(--color-danger); color: white;">
+                        @formErrorMessage
+                    </div>
+                }
+
+                <div class="flex gap-4 mt-6">
+                    <button @onclick="SaveInvoice" class="btn-primary flex-1" disabled="@isSaving">
+                        @(isSaving ? "Speichert..." : "Speichern")
+                    </button>
+                    <button @onclick="HideForm" class="px-4 py-2 rounded-lg flex-1"
+                            style="background-color: var(--color-surface); color: var(--color-text-primary);">
+                        Abbrechen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Invoice> invoices = new();
+    private List<Invoice> filteredInvoices = new();
+    private List<Invoice> openInvoices = new();
+    private List<Invoice> paidInvoices = new();
+    private List<Attachment> invoiceAttachments = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool showForm = false;
+    private string? errorMessage;
+    private string? formErrorMessage;
+    private Invoice? editingInvoice;
+    private Invoice formInvoice = new();
+
+    private string searchText = "";
+    private string filterStatus = "";
+
+    // File upload
+    private IBrowserFile? selectedFile;
+    private string? selectedFileName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var isAuth = await AuthService.IsAuthenticatedAsync();
+            if (!isAuth)
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            if (AppState.CurrentOrganization == null)
+            {
+                Navigation.NavigateTo("/dashboard");
+                return;
+            }
+
+            await LoadInvoices();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden: {ex.Message}";
+            Console.Error.WriteLine($"Invoices init error: {ex}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadInvoices()
+    {
+        if (AppState.CurrentOrganization == null) return;
+
+        try
+        {
+            invoices = await InvoiceRepo.GetAllAsync(AppState.CurrentOrganization.Id);
+            openInvoices = invoices.Where(x => x.Status == InvoiceStatus.Open).ToList();
+            paidInvoices = invoices.Where(x => x.Status == InvoiceStatus.Paid).ToList();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden der Rechnungen: {ex.Message}";
+            Console.Error.WriteLine($"Load invoices error: {ex}");
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        filteredInvoices = invoices;
+
+        if (!string.IsNullOrEmpty(filterStatus))
+        {
+            var status = Enum.Parse<InvoiceStatus>(filterStatus);
+            filteredInvoices = filteredInvoices.Where(x => x.Status == status).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(searchText))
+        {
+            var search = searchText.ToLower();
+            filteredInvoices = filteredInvoices.Where(x =>
+                x.Vendor.ToLower().Contains(search) ||
+                (x.Category != null && x.Category.ToLower().Contains(search))
+            ).ToList();
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        editingInvoice = null;
+        formInvoice = new Invoice
+        {
+            OrganizationId = AppState.CurrentOrganization!.Id,
+            Currency = "EUR",
+            Status = InvoiceStatus.Open,
+            DueAt = DateTime.Today.AddDays(30)
+        };
+        formErrorMessage = null;
+        showForm = true;
+    }
+
+    private async Task ShowEditForm(Invoice invoice)
+    {
+        editingInvoice = invoice;
+        formInvoice = new Invoice
+        {
+            Id = invoice.Id,
+            OrganizationId = invoice.OrganizationId,
+            Vendor = invoice.Vendor,
+            Amount = invoice.Amount,
+            Currency = invoice.Currency,
+            DueAt = invoice.DueAt,
+            Status = invoice.Status,
+            Category = invoice.Category,
+            Notes = invoice.Notes
+        };
+
+        // Load attachments for this invoice
+        invoiceAttachments = await AttachmentRepo.GetByInvoiceIdAsync(invoice.Id);
+
+        formErrorMessage = null;
+        selectedFile = null;
+        selectedFileName = null;
+        showForm = true;
+    }
+
+    private void HideForm()
+    {
+        showForm = false;
+        editingInvoice = null;
+        formErrorMessage = null;
+        selectedFile = null;
+        selectedFileName = null;
+        invoiceAttachments.Clear();
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        selectedFileName = e.File.Name;
+    }
+
+    private string GetFileNameFromPath(string objectPath)
+    {
+        // Remove timestamp prefix (e.g., "1234567890_filename.pdf" -> "filename.pdf")
+        var parts = objectPath.Split('_', 2);
+        return parts.Length > 1 ? parts[1] : objectPath;
+    }
+
+    private async Task ViewAttachment(Attachment attachment)
+    {
+        try
+        {
+            // Get signed URL (valid for 1 hour)
+            var signedUrl = await StorageService.GetSignedUrlAsync(attachment.ObjectPath, 3600);
+
+            if (signedUrl != null)
+            {
+                // Open in new tab
+                await JSRuntime.InvokeVoidAsync("open", signedUrl, "_blank");
+            }
+            else
+            {
+                formErrorMessage = "Fehler beim Laden der Datei.";
+            }
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = $"Fehler beim Öffnen: {ex.Message}";
+            Console.Error.WriteLine($"View attachment error: {ex}");
+        }
+    }
+
+    private async Task DownloadAttachment(Attachment attachment)
+    {
+        try
+        {
+            // Get signed URL (valid for 1 hour)
+            var signedUrl = await StorageService.GetSignedUrlAsync(attachment.ObjectPath, 3600);
+
+            if (signedUrl != null)
+            {
+                // Trigger download with original filename
+                var fileName = GetFileNameFromPath(attachment.ObjectPath);
+                await JSRuntime.InvokeVoidAsync("downloadFileFromUrl", signedUrl, fileName);
+            }
+            else
+            {
+                formErrorMessage = "Fehler beim Herunterladen der Datei.";
+            }
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = $"Fehler beim Herunterladen: {ex.Message}";
+            Console.Error.WriteLine($"Download attachment error: {ex}");
+        }
+    }
+
+    private async Task DeleteAttachment(Attachment attachment)
+    {
+        try
+        {
+            // Delete from storage
+            await StorageService.DeleteFileAsync(attachment.ObjectPath);
+
+            // Delete from database
+            await AttachmentRepo.DeleteAsync(attachment.Id);
+
+            // Reload attachments
+            if (editingInvoice != null)
+            {
+                invoiceAttachments = await AttachmentRepo.GetByInvoiceIdAsync(editingInvoice.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = $"Fehler beim Löschen: {ex.Message}";
+            Console.Error.WriteLine($"Delete attachment error: {ex}");
+        }
+    }
+
+    private async Task SaveInvoice()
+    {
+        if (string.IsNullOrWhiteSpace(formInvoice.Vendor))
+        {
+            formErrorMessage = "Lieferant ist erforderlich.";
+            return;
+        }
+
+        if (formInvoice.Amount <= 0)
+        {
+            formErrorMessage = "Betrag muss größer als 0 sein.";
+            return;
+        }
+
+        isSaving = true;
+        formErrorMessage = null;
+
+        try
+        {
+            if (AppState.CurrentOrganization == null)
+            {
+                formErrorMessage = "Organisation nicht gefunden.";
+                return;
+            }
+
+            Invoice? savedInvoice = null;
+
+            if (editingInvoice == null)
+            {
+                var createDto = new CreateInvoiceDto
+                {
+                    Vendor = formInvoice.Vendor,
+                    Amount = formInvoice.Amount,
+                    Currency = formInvoice.Currency,
+                    DueAt = formInvoice.DueAt,
+                    Status = formInvoice.Status,
+                    Category = formInvoice.Category,
+                    Notes = formInvoice.Notes
+                };
+                savedInvoice = await InvoiceRepo.CreateAsync(AppState.CurrentOrganization.Id, createDto);
+            }
+            else
+            {
+                var updateDto = new UpdateInvoiceDto
+                {
+                    Id = formInvoice.Id,
+                    Vendor = formInvoice.Vendor,
+                    Amount = formInvoice.Amount,
+                    Currency = formInvoice.Currency,
+                    DueAt = formInvoice.DueAt,
+                    Status = formInvoice.Status,
+                    Category = formInvoice.Category,
+                    Notes = formInvoice.Notes
+                };
+                savedInvoice = await InvoiceRepo.UpdateAsync(updateDto);
+            }
+
+            // Upload file if selected
+            if (selectedFile != null && savedInvoice != null)
+            {
+                try
+                {
+                    // Read file data
+                    var maxFileSize = 10 * 1024 * 1024; // 10MB
+                    using var stream = selectedFile.OpenReadStream(maxFileSize);
+                    using var memoryStream = new MemoryStream();
+                    await stream.CopyToAsync(memoryStream);
+                    var fileData = memoryStream.ToArray();
+
+                    // Upload to storage
+                    var objectPath = await StorageService.UploadFileAsync(
+                        selectedFile.Name,
+                        fileData,
+                        selectedFile.ContentType
+                    );
+
+                    if (objectPath != null)
+                    {
+                        // Create attachment record
+                        await AttachmentRepo.CreateAsync(
+                            savedInvoice.Id,
+                            objectPath,
+                            selectedFile.ContentType,
+                            fileData.Length
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"File upload error: {ex.Message}");
+                    // Don't fail the whole operation if file upload fails
+                }
+            }
+
+            await LoadInvoices();
+            HideForm();
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = $"Fehler beim Speichern: {ex.Message}";
+            Console.Error.WriteLine($"Save invoice error: {ex}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task MarkAsPaid(Invoice invoice)
+    {
+        try
+        {
+            var updateDto = new UpdateInvoiceDto
+            {
+                Id = invoice.Id,
+                Vendor = invoice.Vendor,
+                Amount = invoice.Amount,
+                Currency = invoice.Currency,
+                DueAt = invoice.DueAt,
+                Status = InvoiceStatus.Paid,
+                Category = invoice.Category,
+                Notes = invoice.Notes
+            };
+            await InvoiceRepo.UpdateAsync(updateDto);
+            await LoadInvoices();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Aktualisieren: {ex.Message}";
+            Console.Error.WriteLine($"Mark as paid error: {ex}");
+        }
+    }
+
+    private async Task DeleteInvoice(Invoice invoice)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Möchten Sie die Rechnung von '{invoice.Vendor}' wirklich löschen?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await InvoiceRepo.DeleteAsync(invoice.Id);
+            await LoadInvoices();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Löschen: {ex.Message}";
+            Console.Error.WriteLine($"Delete invoice error: {ex}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}

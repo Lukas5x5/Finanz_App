@@ -1,0 +1,12 @@
+{
+  "name": "finance-app",
+  "version": "1.0.0",
+  "description": "Modern finance management app",
+  "scripts": {
+    "css:build": "npx tailwindcss -i ./src/FinanceApp.Web/wwwroot/css/app.css -o ./src/FinanceApp.Web/wwwroot/css/output.css --minify",
+    "css:watch": "npx tailwindcss -i ./src/FinanceApp.Web/wwwroot/css/app.css -o ./src/FinanceApp.Web/wwwroot/css/output.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}
