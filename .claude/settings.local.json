@@ -17,7 +17,11 @@
       "Bash(.gitignore)",
       "Bash(git init:*)",
       "Bash(.githubworkflowsdeploy.yml)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
