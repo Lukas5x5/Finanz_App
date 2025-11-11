@@ -32,10 +32,24 @@ jobs:
       - name: Publish
         run: dotnet publish src/FinanceApp.Web/FinanceApp.Web.csproj --configuration Release --output publish --no-restore
 
+      - name: Debug - List publish directory
+        run: |
+          echo "Contents of publish directory:"
+          ls -la publish/ || true
+          echo "Contents of publish/wwwroot directory:"
+          ls -la publish/wwwroot/ || true
+          echo "Looking for index.html:"
+          find publish -name "index.html" || true
+
       - name: Change base-tag in index.html
         run: |
+          if [ ! -f "publish/wwwroot/index.html" ]; then
+            echo "ERROR: index.html not found at publish/wwwroot/index.html"
+            exit 1
+          fi
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           sed -i "s/<base href=\"\/\" \/>/<base href=\"\/${REPO_NAME}\/\" \/>/g" publish/wwwroot/index.html
+          echo "Successfully updated base tag to /${REPO_NAME}/"
 
       - name: Add .nojekyll file
         run: touch publish/wwwroot/.nojekyll
