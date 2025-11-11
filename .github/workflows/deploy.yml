@@ -29,11 +29,8 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore src/FinanceApp.Web/FinanceApp.Web.csproj
 
-      - name: Build
-        run: dotnet build src/FinanceApp.Web/FinanceApp.Web.csproj --configuration Release --no-restore
-
       - name: Publish
-        run: dotnet publish src/FinanceApp.Web/FinanceApp.Web.csproj --configuration Release --output publish
+        run: dotnet publish src/FinanceApp.Web/FinanceApp.Web.csproj --configuration Release --output publish --no-restore
 
       - name: Change base-tag in index.html
         run: |
