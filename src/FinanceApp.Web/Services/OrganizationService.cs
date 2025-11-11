@@ -121,7 +121,7 @@ public class OrganizationService : IOrganizationService
     {
         try
         {
-            var response = await _client.Rpc("rpc_create_personal_organization", null);
+            var response = await _client.Rpc("rpc_create_personal_organization", new Dictionary<string, object>());
             if (response != null && response.Content != null)
             {
                 var orgId = Guid.Parse(response.Content.Trim('"'));
