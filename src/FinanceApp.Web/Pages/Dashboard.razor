@@ -312,7 +312,7 @@
             var isAuth = await AuthService.IsAuthenticatedAsync();
             if (!isAuth)
             {
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("", forceLoad: false);
                 return;
             }
 
@@ -505,6 +505,6 @@
     private async Task HandleLogout()
     {
         await AuthService.SignOutAsync();
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo("", forceLoad: false);
     }
 }

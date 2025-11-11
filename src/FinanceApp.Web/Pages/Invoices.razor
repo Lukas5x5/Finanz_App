@@ -370,13 +370,13 @@
             var isAuth = await AuthService.IsAuthenticatedAsync();
             if (!isAuth)
             {
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("", forceLoad: false);
                 return;
             }
 
             if (AppState.CurrentOrganization == null)
             {
-                Navigation.NavigateTo("/dashboard");
+                Navigation.NavigateTo("dashboard", forceLoad: false);
                 return;
             }
 
@@ -719,6 +719,6 @@
 
     private void GoBack()
     {
-        Navigation.NavigateTo("/dashboard");
+        Navigation.NavigateTo("dashboard", forceLoad: false);
     }
 }
