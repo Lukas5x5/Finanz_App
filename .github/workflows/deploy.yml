@@ -32,15 +32,6 @@ jobs:
       - name: Publish
         run: dotnet publish src/FinanceApp.Web/FinanceApp.Web.csproj --configuration Release --output publish --no-restore
 
-      - name: Debug - List publish directory
-        run: |
-          echo "Contents of publish directory:"
-          ls -la publish/ || true
-          echo "Contents of publish/wwwroot directory:"
-          ls -la publish/wwwroot/ || true
-          echo "Looking for index.html:"
-          find publish -name "index.html" || true
-
       - name: Change base-tag in index.html
         run: |
           if [ ! -f "publish/wwwroot/index.html" ]; then
